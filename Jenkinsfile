@@ -6,16 +6,22 @@ pipeline {
     }
 
     stages {
+
         stage('Git Checkout') {
             steps {
-                git url: 'https://github.com/Kapil-123-lab/Devops-Exam-App.git',
-                    branch: 'main'
+                git branch: 'main',
+                url: 'https://github.com/Kapil-123-lab/Devops-Exam-App.git'
             }
-        }   
-        stage('Verify Docker Compose') {
+        }
+
+        stage('Verify Docker & Docker Compose') {
             steps {
                 sh '''
-                docker compose version || { echo "Docker Compose not available"; exit 1; }
+                docker --version
+                docker compose version || {
+                    echo "Docker Compose not installed"
+                    exit 1
+                }
                 '''
             }
         }
@@ -23,44 +29,49 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('backend') {
-                    script {
-                        withDockerRegistry(credentialsId: 'docker-creds', toolName: 'docker') {
-                            sh "docker build -t ${DOCKER_IMAGE} ."
-                        }
-                    }
+                    sh '''
+                    docker build -t ${DOCKER_IMAGE} .
+                    '''
                 }
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Push Docker Image') {
             steps {
                 script {
-                    withDockerRegistry(credentialsId: 'docker-creds', toolName: 'docker') {
-                        sh """
+                    withDockerRegistry(credentialsId: 'docker-creds') {
+
+                        sh '''
                         docker push ${DOCKER_IMAGE}
-                        """
+                        '''
                     }
                 }
             }
         }
 
-        stage('Deploy with Docker Compose') {
+        stage('Deploy Application') {
             steps {
                 sh '''
+                echo "Stopping old containers..."
                 docker compose down --remove-orphans || true
 
+                echo "Pulling latest image..."
+                docker pull ${DOCKER_IMAGE} || true
+
+                echo "Starting containers..."
                 docker compose up -d
 
-                echo "Waiting for MySQL to be ready..."
+                echo "Waiting for MySQL..."
 
                 timeout 120s bash -c '
-                while ! docker compose exec -T mysql mysqladmin ping -uroot -prootpass --silent;
+                until docker compose exec -T mysql mysqladmin ping -uroot -prootpass --silent
                 do
+                    echo "MySQL not ready yet..."
                     sleep 5
-                    docker compose logs mysql --tail=5 || true
-                done'
+                done
+                '
 
-                sleep 10
+                echo "Application deployment completed"
                 '''
             }
         }
@@ -68,40 +79,40 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 sh '''
-                echo "=== Container Status ==="
+                echo "===== RUNNING CONTAINERS ====="
                 docker compose ps -a
 
-                echo "=== Testing Flask Endpoint ==="
+                echo "===== APPLICATION TEST ====="
                 curl -I http://localhost:5000 || true
+
+                echo "===== DOCKER IMAGES ====="
+                docker images | grep kapil-123-lab || true
                 '''
             }
         }
     }
 
     post {
-        success {
-            echo '🚀 Deployment successful!'
 
-            sh '''
-            docker compose ps
-            docker images | grep kapil-123-lab
-            '''
+        success {
+            echo '🚀 Deployment Successful!'
         }
 
         failure {
-            echo '❗ Pipeline failed. Check logs above.'
+            echo '❌ Pipeline Failed!'
 
             sh '''
-            echo "=== Error Investigation ==="
+            echo "===== DOCKER COMPOSE LOGS ====="
             docker compose logs --tail=50 || true
             '''
         }
 
         always {
             sh '''
-            echo "=== Final Logs ==="
-            docker compose logs --tail=20 || true
+            echo "===== FINAL CONTAINER STATUS ====="
+            docker compose ps -a || true
             '''
         }
     }
 }
+```
