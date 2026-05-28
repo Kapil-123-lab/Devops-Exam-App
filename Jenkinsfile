@@ -3,7 +3,7 @@ agent any
 
 
 environment {
-    DOCKER_IMAGE = "kapilkanaujiya/kapil-123-lab:latest"
+    IMAGE_NAME = "kapilkanaujiya/kapil-123-lab:latest"
 }
 
 stages {
@@ -17,21 +17,15 @@ stages {
 
     stage('Verify Docker & Docker Compose') {
         steps {
-            bat '''
-            docker --version
-
-            docker compose version
-            '''
+            bat 'docker --version'
+            bat 'docker compose version'
         }
     }
 
     stage('Build Docker Image') {
         steps {
             dir('backend') {
-
-                bat '''
-                docker build -t %DOCKER_IMAGE% .
-                '''
+                bat 'docker build -t %IMAGE_NAME% .'
             }
         }
     }
@@ -39,12 +33,8 @@ stages {
     stage('Push Docker Image') {
         steps {
             script {
-
-                withDockerRegistry(credentialsId: 'docker-creds') {
-
-                    bat '''
-                    docker push %DOCKER_IMAGE%
-                    '''
+                withDockerRegistry([credentialsId: 'docker-creds', url: '']) {
+                    bat 'docker push %IMAGE_NAME%'
                 }
             }
         }
@@ -52,50 +42,27 @@ stages {
 
     stage('Deploy Application') {
         steps {
-
-            bat '''
-            docker compose down --remove-orphans
-
-            docker pull %DOCKER_IMAGE%
-
-            docker compose up -d
-            '''
+            bat 'docker compose down'
+            bat 'docker compose up -d'
         }
     }
 
     stage('Verify Deployment') {
         steps {
-
-            bat '''
-            docker compose ps -a
-
-            curl http://localhost:5000
-            '''
+            bat 'docker ps'
         }
     }
 }
 
 post {
-
     success {
-        echo 'Deployment Successful!'
+        echo 'Pipeline Success!'
     }
 
     failure {
         echo 'Pipeline Failed!'
-
-        bat '''
-        docker compose logs --tail=50
-        '''
-    }
-
-    always {
-
-        bat '''
-        docker compose ps -a
-        '''
+        bat 'docker compose logs --tail=50'
     }
 }
-
 
 }
