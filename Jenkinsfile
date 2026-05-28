@@ -1,4 +1,3 @@
-```groovy id="q8v2la"
 pipeline {
     agent any
 
@@ -9,11 +8,10 @@ pipeline {
     stages {
         stage('Git Checkout') {
             steps {
-                git url: 'https://github.com/kapilkanaujiya/kapil-123-lab.git',
+                git url: 'https://github.com/Kapil-123-lab/Devops-Exam-App.git',
                     branch: 'main'
             }
-        }
-
+        }   
         stage('Verify Docker Compose') {
             steps {
                 sh '''
