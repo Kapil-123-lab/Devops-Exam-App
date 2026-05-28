@@ -17,13 +17,10 @@ stages {
 
     stage('Verify Docker & Docker Compose') {
         steps {
-            sh '''
+            bat '''
             docker --version
 
-            docker compose version || {
-                echo "Docker Compose not installed"
-                exit 1
-            }
+            docker compose version
             '''
         }
     }
@@ -31,8 +28,9 @@ stages {
     stage('Build Docker Image') {
         steps {
             dir('backend') {
-                sh '''
-                docker build -t ${DOCKER_IMAGE} .
+
+                bat '''
+                docker build -t %DOCKER_IMAGE% .
                 '''
             }
         }
@@ -41,10 +39,11 @@ stages {
     stage('Push Docker Image') {
         steps {
             script {
+
                 withDockerRegistry(credentialsId: 'docker-creds') {
 
-                    sh '''
-                    docker push ${DOCKER_IMAGE}
+                    bat '''
+                    docker push %DOCKER_IMAGE%
                     '''
                 }
             }
@@ -53,10 +52,11 @@ stages {
 
     stage('Deploy Application') {
         steps {
-            sh '''
-            docker compose down --remove-orphans || true
 
-            docker pull ${DOCKER_IMAGE} || true
+            bat '''
+            docker compose down --remove-orphans
+
+            docker pull %DOCKER_IMAGE%
 
             docker compose up -d
             '''
@@ -65,10 +65,11 @@ stages {
 
     stage('Verify Deployment') {
         steps {
-            sh '''
+
+            bat '''
             docker compose ps -a
 
-            curl -I http://localhost:5000 || true
+            curl http://localhost:5000
             '''
         }
     }
@@ -83,10 +84,18 @@ post {
     failure {
         echo 'Pipeline Failed!'
 
-        sh '''
-        docker compose logs --tail=50 || true
+        bat '''
+        docker compose logs --tail=50
+        '''
+    }
+
+    always {
+
+        bat '''
+        docker compose ps -a
         '''
     }
 }
+
 
 }
