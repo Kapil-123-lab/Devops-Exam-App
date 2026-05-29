@@ -1,84 +1,95 @@
 pipeline {
-agent any
+    agent any
 
-
-environment {
-    IMAGE_NAME = "kapilkanaujiya/kapil-123-lab:latest"
-}
-
-stages {
-
-    stage('Git Checkout') {
-        steps {
-            git branch: 'main',
-            url: 'https://github.com/Kapil-123-lab/Devops-Exam-App.git'
-        }
+    environment {
+        // Automatically tags your image with the active Jenkins Build Number
+        IMAGE_NAME = "kapilkanaujiya/kapil-123-lab:${BUILD_NUMBER}"
+        EC2_USER   = "ubuntu"
+        EC2_IP     = "3.108.249.247"
     }
 
-    stage('Verify Docker & Docker Compose') {
-        steps {
-            bat 'docker --version'
-            bat 'docker compose version'
-        }
-    }
-
-    stage('Build Docker Image') {
-        steps {
-            dir('backend') {
-                bat 'docker build -t %IMAGE_NAME% .'
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Kapil-123-lab/Devops-Exam-App.git'
             }
         }
-    }
 
-    stage('Push Docker Image') {
-        steps {
-            script {
-                withDockerRegistry([credentialsId: 'docker', url: '']) {
-                    bat 'docker push %IMAGE_NAME%'
+        stage('Verify Environment') {
+            steps {
+                bat 'docker --version'
+                bat 'docker compose version'
+                echo "======================================"
+                echo "EXECUTING BUILD NUMBER: ${env.BUILD_NUMBER}"
+                echo "======================================"
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir('backend') {
+                    bat "docker build -t %IMAGE_NAME% ."
                 }
             }
         }
-    }
 
-    stage('Deploy Application Locally') {
-        steps {
-            bat 'docker compose down'
-            bat 'docker compose up -d'
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    withDockerRegistry([credentialsId: 'docker', url: '']) {
+                        bat "docker push %IMAGE_NAME%"
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes (Minikube on EC2)') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'PEM_FILE')]) {
+                    bat """
+                    :: Reset permissions first to avoid conflicts
+                    icacls "%PEM_FILE%" /reset
+                    
+                    :: Disable inheritance cleanly
+                    icacls "%PEM_FILE%" /inheritance:r /c /q
+                    
+                    :: Grant explicit read access to the local SYSTEM account (S-1-5-18) and Administrators group
+                    icacls "%PEM_FILE%" /grant *S-1-5-18:R /c /q
+                    icacls "%PEM_FILE%" /grant *S-1-5-32-544:R /c /q
+                    
+                    :: Run the SSH deployment command
+                    ssh -o StrictHostKeyChecking=no -i "%PEM_FILE%" ${EC2_USER}@${EC2_IP} "cd ~/Devops-Exam-App && git pull origin main && sed -i 's|image: kapilkanaujiya/kapil-123-lab:.*|image: ${IMAGE_NAME}|g' k8s/deployment.yaml && kubectl apply -f k8s/ && kubectl rollout status deployment/flask-app --timeout=60s"
+                    """
+                }
+            }
+        }
+
+        stage('Verify Kubernetes Deployment') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'PEM_FILE')]) {
+                    bat """
+                    icacls "%PEM_FILE%" /reset
+                    icacls "%PEM_FILE%" /inheritance:r /c /q
+                    icacls "%PEM_FILE%" /grant *S-1-5-18:R /c /q
+                    icacls "%PEM_FILE%" /grant *S-1-5-32-544:R /c /q
+                    
+                    ssh -o StrictHostKeyChecking=no -i "%PEM_FILE%" ${EC2_USER}@${EC2_IP} "echo '=== CURRENT RUNNING PODS ===' && kubectl get pods && echo '=== ACTIVE SERVICES ===' && kubectl get svc"
+                    """
+                }
+            }
+        }
+    } // <--- Added: This properly closes the 'stages' block
+
+    post {
+        success {
+            echo '======================================'
+            echo '🎉 Pipeline Finished Successfully!'
+            echo '======================================'
+        }
+        failure {
+            echo '======================================'
+            echo '❌ Pipeline Execution Failed!'
+            echo '======================================'
         }
     }
-
-    stage('Deploy to EC2') {
-    steps {
-        bat '''
-        icacls "C:\\Users\\Alg gaming\\Downloads\\Devops Exam app.pem" /inheritance:r
-        icacls "C:\\Users\\Alg gaming\\Downloads\\Devops Exam app.pem" /grant:r "%USERNAME%:R"
-
-        ssh -o StrictHostKeyChecking=no -i "C:\\Users\\Alg gaming\\Downloads\\Devops Exam app.pem" ubuntu@3.108.249.247 ^
-        "docker pull kapilkanaujiya/kapil-123-lab:latest && ^
-        docker stop flask_app || true && ^
-        docker rm flask_app || true && ^
-        docker run -d --name flask_app -p 5000:5000 kapilkanaujiya/kapil-123-lab:latest"
-        '''
-        }
-    }
-
-    stage('Verify Deployment') {
-        steps {
-            bat 'docker ps'
-        }
-    }
-}
-
-post {
-    success {
-        echo 'Pipeline Success!'
-    }
-
-    failure {
-        echo 'Pipeline Failed!'
-        bat 'docker compose logs --tail=50'
-    }
-}
-
-
 }
