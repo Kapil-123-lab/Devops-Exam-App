@@ -14,6 +14,16 @@ spec:
     spec:
       containers:
       - name: flask-app
-        image: kapilkanaujiya/kapil-123-lab:latest
+        image: kapilkanaujiya/kapil-123-lab:37
         ports:
         - containerPort: 5000
+        # ⬇️ ADD THIS ENV BLOCK HERE ⬇️
+        env:
+        - name: MYSQL_HOST
+          value: "mysql-service"
+        - name: MYSQL_USER
+          value: "root"
+        - name: MYSQL_PASSWORD
+          value: "root"
+        - name: MYSQL_DATABASE
+          value: "devops_exam"
