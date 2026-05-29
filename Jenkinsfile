@@ -33,17 +33,30 @@ stages {
     stage('Push Docker Image') {
         steps {
             script {
-                withDockerRegistry([credentialsId: 'docker-creds', url: '']) {
+                withDockerRegistry([credentialsId: 'docker', url: '']) {
                     bat 'docker push %IMAGE_NAME%'
                 }
             }
         }
     }
 
-    stage('Deploy Application') {
+    stage('Deploy Application Locally') {
         steps {
             bat 'docker compose down'
             bat 'docker compose up -d'
+        }
+    }
+
+    stage('Deploy to EC2') {
+        steps {
+            bat '''
+            ssh -o StrictHostKeyChecking=no -i "C:\\Users\\Alg gaming\\Downloads\\Devops Exam app.pem" ubuntu@3.108.249.247 "
+            docker pull kapilkanaujiya/kapil-123-lab:latest &&
+            docker stop flask_app || true &&
+            docker rm flask_app || true &&
+            docker run -d --name flask_app -p 5000:5000 kapilkanaujiya/kapil-123-lab:latest
+            "
+            '''
         }
     }
 
