@@ -48,15 +48,17 @@ stages {
     }
 
     stage('Deploy to EC2') {
-        steps {
-            bat '''
-            ssh -o StrictHostKeyChecking=no -i "C:\\Users\\Alg gaming\\Downloads\\Devops Exam app.pem" ubuntu@3.108.249.247 "
-            docker pull kapilkanaujiya/kapil-123-lab:latest &&
-            docker stop flask_app || true &&
-            docker rm flask_app || true &&
-            docker run -d --name flask_app -p 5000:5000 kapilkanaujiya/kapil-123-lab:latest
-            "
-            '''
+    steps {
+        bat '''
+        icacls "C:\\Users\\Alg gaming\\Downloads\\Devops Exam app.pem" /inheritance:r
+        icacls "C:\\Users\\Alg gaming\\Downloads\\Devops Exam app.pem" /grant:r "%USERNAME%:R"
+
+        ssh -o StrictHostKeyChecking=no -i "C:\\Users\\Alg gaming\\Downloads\\Devops Exam app.pem" ubuntu@3.108.249.247 ^
+        "docker pull kapilkanaujiya/kapil-123-lab:latest && ^
+        docker stop flask_app || true && ^
+        docker rm flask_app || true && ^
+        docker run -d --name flask_app -p 5000:5000 kapilkanaujiya/kapil-123-lab:latest"
+        '''
         }
     }
 
@@ -77,5 +79,6 @@ post {
         bat 'docker compose logs --tail=50'
     }
 }
+
 
 }
