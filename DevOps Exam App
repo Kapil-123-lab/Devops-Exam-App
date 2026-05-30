@@ -1,0 +1,243 @@
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+*********************************************
+1. Launch Ubuntu Ci Flex Large.04, 8 GB Ram 30 GB VM
+*********************************************
+Open below ports - 
+Type: All TCP, Protocol: TCP, Port range: 0 - 65535*
+Type: All ICMP - IPv4, Protocol: ICMP, Port range: All
+Type: SSH, Protocol: TCP, Port range: 22*
+Type: Custom TCP, Protocol: TCP, Port range: 3000*
+Type: Custom TCP, Protocol: TCP, Port range: 8081
+Type: Custom TCP, Protocol: TCP, Port range: 8080*
+Type: HTTPS, Protocol: TCP, Port range: 443*
+Type: Custom TCP, Protocol: TCP, Port range: 6443
+Type: HTTP, Protocol: TCP, Port range: 80*
+
+************************************
+2. Connect to VM
+************************************
+sudo su
+sudo apt update
+
+************************************
+3. Installation of Docker
+************************************
+vi docker.sh ----> Paste the below commands ---->
+#!/bin/bash
+
+# Update package manager repositories
+sudo apt-get update
+
+# Install necessary dependencies
+sudo apt-get install -y ca-certificates curl
+
+# Create directory for Docker GPG key
+sudo install -m 0755 -d /etc/apt/keyrings
+
+# Download Docker's GPG key
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+
+# Ensure proper permissions for the key
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add Docker repository to Apt sources
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+$(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Update package manager repositories
+sudo apt-get update
+
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+
+----> esc ----> :wq ----> sudo chmod +x docker.sh ----> ./docker.sh ----> docker --version
+
+Try to pull some default image ----> docker pull hello-world ----> You will be able to pull the image. If you are unable to pull the image. Execute the below command to provide necessary permissions ----> sudo chmod 666 /var/run/docker.sock ----> docker pull hello-world ----> You will be able to pull the image
+
+After executing docker installation commands; execute the below commands in VM;
+# Add jenkins user to docker group
+sudo usermod -aG docker jenkins
+
+# Restart Jenkins to apply changes
+sudo systemctl restart jenkins
+
+# Verify Jenkins can access Docker
+sudo -u jenkins docker ps
+
+# Update & Install Python pip 
+sudo apt-get update
+sudo apt-get install -y python3-venv python3-pip
+
+# Install docker-compose on your Jenkins server:
+sudo apt-get update
+sudo apt-get install -y docker-compose-plugin
+
+
+
+************************************
+4. Installation of Docker Scout
+************************************
+Make sure to Login to DockerHub account in browser
+
+Goto MobaXTerm Terminal ---> Login to DockerHub ---> docker login -u <DockerHubUserName> ---> Click Enter ---> Enter the password of DockerHub ---> 
+
+Installation of Docker Scout ---> curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s -- -b /usr/local/bin ---> Give the permission to dockerScout to execute the file ---> sudo chmod 777 /var/run/docker.sock
+
+************************************
+8. Jenkins Plugin Installation
+************************************
+Install below plugins;
+SonarQube scanner, Docker, Docker Commons, Docker Pipeline, Docker API, docker-build-step, Pipeline stage view, Email Extension Template, Kubernetes, Kubernetes CLI, Kubernetes Client API, Kubernetes Credentials, Kubernetes Credentials Provider, Config File Provider, Prometheus metrics ---> install ---> You will see error while installing Prometheus plugin. Read the error message. Here we need to restart the Jenkins ---> 'Check' the box below 'Go back to the top of page' to restart the Jenkins
+
+************************************
+9. Tools Configuration in Jenkins
+************************************
+Goto the Jenkins console (since we restarted, login again to Jenkins) ---> Manage Jenkins ---> System Configuration ---> Tools ---> SonarQube Scanner Installations ---> Add 'SonarQube Scanner' ---> Name: sonar-scanner, 'Check' Install automatically, Version: Select the latest version 7.1.0.4889 ---> Docker Installations ---> Add Docker---> Name: docker, 'Check' Install automatically,  Click on 'Add Installer', Select 'Download from docker.com', Version: latest ---> Apply ---> Save
+
+************************************
+10. Docker Hub Credentials Configuration
+************************************
+10.1. Docker hub Credentials Configuration
+This is being done because, as soon as the docker image is created, it should get pushed to dockerhub. 
+Goto the Jenkins console ---> Manage Jenkins ---> Security ---> Credentials ---> Under 'Stores scoped to Jenkins', Click on 'Global' ---> Add credentials ---> A dia ---> Kind: Username with Password, Scope: Global, Username: <Provide DockerHub Username>, Password: <DockerHubPassword>, ID: docker, Description: docker ---> Create ---> You can see the docker credentials got created.
+
+
+======================================
+10. Docker configuration for Jenkins Pipeline
+======================================
+In the Docker Build & Tag Docker Image stage of pipeline, to generate the pipeline syntax, follow as below;
+Open Jenkins Job --- Pipeline Syntax --- Sample step: withDockerRegistry: Sets up Docker Registry Endpoint, Docker registry URL: (since its a public docker registry, we dont have to provide the docker hub URL) --- Registry credentials: Select 'docker-cred' from dropdown, Docker installation: docker --- Generate pipeline syntax --- Copy the syntax and paste in the pipeline script.
+
+
+1. Accessing the MySQL Database
+# Connect to MySQL container
+docker exec -it mysql_db mysql -u root -p
+# Enter password: rootpass when prompted
+
+2. Common Database Operations
+Once connected to MySQL:
+-- Show all databases
+SHOW DATABASES;
+
+-- Use your application database
+USE devops_exam;
+
+-- Show all tables
+SHOW TABLES;
+
+-- View the structure of your results table
+DESCRIBE results;
+
+-- View all exam results
+SELECT * FROM results;
+
+-- View results sorted by score (highest first)
+SELECT * FROM results ORDER BY score DESC;
+
+-- View average score
+SELECT AVG(score) FROM results;
+
+-- View number of submissions
+SELECT COUNT(*) FROM results;
+
+
+--------------------------------------------------------------------------------------------------------
+Pipeline ( Docker Scout Analysis ,Kuberbetes)
+--------------------------------------------------------------------------------------------------------
+pipeline {
+    agent any
+
+    environment {
+        // Automatically tags your image with the active Jenkins Build Number
+        IMAGE_NAME = "kapilkanaujiya/kapil-123-lab:${BUILD_NUMBER}"
+        EC2_USER   = "ubuntu"
+        EC2_IP     = "3.108.249.247"
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Kapil-123-lab/Devops-Exam-App.git'
+            }
+        }
+
+        stage('Verify Environment') {
+            steps {
+                bat 'docker --version'
+                bat 'docker compose version'
+                echo "======================================"
+                echo "EXECUTING BUILD NUMBER: ${env.BUILD_NUMBER}"
+                echo "======================================"
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir('backend') {
+                    bat "docker build -t %IMAGE_NAME% ."
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    withDockerRegistry([credentialsId: 'docker', url: '']) {
+                        bat "docker push %IMAGE_NAME%"
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes (Minikube on EC2)') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'PEM_FILE')]) {
+                    bat """
+                    :: Reset permissions first to avoid conflicts
+                    icacls "%PEM_FILE%" /reset
+                    
+                    :: Disable inheritance cleanly
+                    icacls "%PEM_FILE%" /inheritance:r /c /q
+                    
+                    :: Grant explicit read access to the local SYSTEM account (S-1-5-18) and Administrators group
+                    icacls "%PEM_FILE%" /grant *S-1-5-18:R /c /q
+                    icacls "%PEM_FILE%" /grant *S-1-5-32-544:R /c /q
+                    
+                    :: Run the SSH deployment command
+                    ssh -o StrictHostKeyChecking=no -i "%PEM_FILE%" ${EC2_USER}@${EC2_IP} "cd ~/Devops-Exam-App && git pull origin main && sed -i 's|image: kapilkanaujiya/kapil-123-lab:.*|image: ${IMAGE_NAME}|g' k8s/deployment.yaml && kubectl apply -f k8s/ && kubectl rollout status deployment/flask-app --timeout=60s"
+                    """
+                }
+            }
+        }
+
+        stage('Verify Kubernetes Deployment') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'PEM_FILE')]) {
+                    bat """
+                    icacls "%PEM_FILE%" /reset
+                    icacls "%PEM_FILE%" /inheritance:r /c /q
+                    icacls "%PEM_FILE%" /grant *S-1-5-18:R /c /q
+                    icacls "%PEM_FILE%" /grant *S-1-5-32-544:R /c /q
+                    
+                    ssh -o StrictHostKeyChecking=no -i "%PEM_FILE%" ${EC2_USER}@${EC2_IP} "echo '=== CURRENT RUNNING PODS ===' && kubectl get pods && echo '=== ACTIVE SERVICES ===' && kubectl get svc"
+                    """
+                }
+            }
+        }
+    } // <--- Added: This properly closes the 'stages' block
+
+    post {
+        success {
+            echo '======================================'
+            echo '🎉 Pipeline Finished Successfully!'
+            echo '======================================'
+        }
+        failure {
+            echo '======================================'
+            echo '❌ Pipeline Execution Failed!'
+            echo '======================================'
+        }
+    }
+}
